@@ -11,12 +11,13 @@ import { PlayerService } from "@/lib/services/PlayerService";
 import { MCBodyAvatar } from "@/components/MCAvatar";
 
 interface Props {
-  params: { username: string };
+  params: Promise<{ username: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { username } = await params;
   return {
-    title: `${decodeURIComponent(params.username)}'s Profile`,
+    title: `${decodeURIComponent(username)}'s Profile`,
   };
 }
 
@@ -41,7 +42,8 @@ function StatBlock({
 
 // ── Main page ─────────────────────────────────────────────────
 export default async function ProfilePage({ params }: Props) {
-  const username = decodeURIComponent(params.username);
+  const { username: encodedUsername } = await params;
+  const username = decodeURIComponent(encodedUsername);
   const service = PlayerService.create();
 
   const player = await service.getByMinecraftUsername(username);

@@ -44,7 +44,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider !== "discord" || !profile?.id) return false;
 
       try {
-        await getPlayerService().upsertFromDiscord({
+        const service = await getPlayerService();
+        await service.upsertFromDiscord({
           id:       profile.id,
           username: profile.username ?? user.name ?? "Unknown",
           avatar:   user.image ?? null,
@@ -61,7 +62,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider === "discord" && profile?.id) {
         token.discordId = profile.id;
         try {
-          const player = await getPlayerService().getByDiscordId(profile.id);
+          const service = await getPlayerService();
+          const player = await service.getByDiscordId(profile.id);
           token.role     = player?.role     ?? "MEMBER";
           token.isLinked = player?.isLinked ?? false;
         } catch {

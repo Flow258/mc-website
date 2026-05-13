@@ -25,3 +25,13 @@ prisma/migrations
 .DS_Store
 *.pemnode_modules/
 node_modules/
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+
+!.env.example

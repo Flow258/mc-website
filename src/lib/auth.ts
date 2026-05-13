@@ -6,9 +6,18 @@
 
 import NextAuth from "next-auth";
 import Discord from "next-auth/providers/discord";
-import { PlayerService } from "@/lib/services/PlayerService";
 
-const playerService = PlayerService.create();
+// Lazy-load PlayerService to avoid initializing Prisma in Edge Runtime
+// (middleware runs on Edge Runtime and imports this file)
+let playerService: any = null;
+
+async function getPlayerService() {
+  if (!playerService) {
+    const { PlayerService } = await import("@/lib/services/PlayerService");
+    playerService = PlayerService.create();
+  }
+  return playerService;
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // Required for non-Vercel deployments (Cloudflare Pages/Workers).
@@ -35,7 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider !== "discord" || !profile?.id) return false;
 
       try {
-        await playerService.upsertFromDiscord({
+        await getPlayerService().upsertFromDiscord({
           id:       profile.id,
           username: profile.username ?? user.name ?? "Unknown",
           avatar:   user.image ?? null,
@@ -52,7 +61,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider === "discord" && profile?.id) {
         token.discordId = profile.id;
         try {
-          const player = await playerService.getByDiscordId(profile.id);
+          const player = await getPlayerService().getByDiscordId(profile.id);
           token.role     = player?.role     ?? "MEMBER";
           token.isLinked = player?.isLinked ?? false;
         } catch {

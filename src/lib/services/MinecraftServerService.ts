@@ -65,7 +65,13 @@ export class MinecraftServerService {
 
       clearTimeout(timeout);
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Don't throw on non-200 — just return offline
+      if (!res.ok) {
+        console.warn(
+          `[MinecraftServerService] ${this.cacheKey} returned HTTP ${res.status}`
+        );
+        return ServerStatus.offline(this.host, this.port);
+      }
 
       const raw: RawServerStatusResponse = await res.json();
 

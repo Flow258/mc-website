@@ -99,7 +99,7 @@ export class ServerStatus {
     };
   }
 
-  /** Create an offline placeholder when the server cannot be reached */
+  /** Create an offline placeholder when the server cannot be reacheds*/
   static offline(host: string, port = 25565): ServerStatus {
     return new ServerStatus({ online: false, host, port });
   }

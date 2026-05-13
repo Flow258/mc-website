@@ -23,7 +23,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center">
           <p className="text-5xl mb-4">⛏</p>
-          <h1 className="text-3xl font-black text-white">BlackArchive SMP</h1>
+          <h1 className="text-3xl font-black text-white">BlackArchive</h1>
           <p className="text-white/40 mt-2">Sign in to track your stats</p>
         </div>
 

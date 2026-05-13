@@ -11,6 +11,10 @@ import { PlayerService } from "@/lib/services/PlayerService";
 const playerService = PlayerService.create();
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Required for non-Vercel deployments (Cloudflare Pages/Workers).
+  // Without this, Auth.js throws UntrustedHost for every request.
+  trustHost: true,
+
   providers: [
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,

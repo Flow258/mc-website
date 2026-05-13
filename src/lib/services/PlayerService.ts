@@ -5,7 +5,21 @@
 
 import { db } from "@/lib/db";
 import { Player, RawPlayerRow } from "@/lib/models/Player";
-import { randomBytes } from "crypto";
+
+/** Generate a random hex string using Web Crypto API (Cloudflare compatible) */
+function generateRandomHex(bytes: number): string {
+  const arr = new Uint8Array(bytes);
+  if (typeof window !== "undefined" && window.crypto) {
+    // Browser environment
+    crypto.getRandomValues(arr);
+  } else {
+    // Node.js environment
+    const { randomBytes } = require("crypto");
+    const buf = randomBytes(bytes);
+    for (let i = 0; i < bytes; i++) arr[i] = buf[i];
+  }
+  return Array.from(arr).map((x) => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
 
 export type LeaderboardField = "playtimeMinutes" | "kills" | "kdr" | "blocksPlaced";
 
@@ -30,26 +44,55 @@ export class PlayerService {
 
   /** Get top N players sorted by a stat field */
   async getLeaderboard(field: LeaderboardField, limit = 10): Promise<Player[]> {
-    // KDR is computed, not stored — calculate in app layer
-    if (field === "kdr") {
-      const rows = await db.player.findMany({
-        where: { minecraftUsername: { not: null } },
-        orderBy: { kills: "desc" },
-        take: 50, // fetch more, sort in memory
-      });
-      return rows
-        .map((r) => new Player(r as RawPlayerRow))
-        .sort((a, b) => b.kdr - a.kdr)
-        .slice(0, limit);
+    const baseWhere = { minecraftUsername: { not: null } };
+
+    // Use static queries (not dynamic orderBy) to avoid Cloudflare Workers eval() error
+    switch (field) {
+      case "playtimeMinutes":
+        {
+          const rows = await db.player.findMany({
+            where: baseWhere,
+            orderBy: { playtimeMinutes: "desc" },
+            take: limit,
+          });
+          return rows.map((r) => new Player(r as RawPlayerRow));
+        }
+
+      case "kills":
+        {
+          const rows = await db.player.findMany({
+            where: baseWhere,
+            orderBy: { kills: "desc" },
+            take: limit,
+          });
+          return rows.map((r) => new Player(r as RawPlayerRow));
+        }
+
+      case "blocksPlaced":
+        {
+          const rows = await db.player.findMany({
+            where: baseWhere,
+            orderBy: { blocksPlaced: "desc" },
+            take: limit,
+          });
+          return rows.map((r) => new Player(r as RawPlayerRow));
+        }
+
+      case "kdr":
+      default:
+        // KDR is computed, not stored — calculate in app layer
+        {
+          const rows = await db.player.findMany({
+            where: baseWhere,
+            orderBy: { kills: "desc" },
+            take: 50, // fetch more, sort in memory
+          });
+          return rows
+            .map((r) => new Player(r as RawPlayerRow))
+            .sort((a, b) => b.kdr - a.kdr)
+            .slice(0, limit);
+        }
     }
-
-    const rows = await db.player.findMany({
-      where: { minecraftUsername: { not: null } },
-      orderBy: { [field]: "desc" },
-      take: limit,
-    });
-
-    return rows.map((r) => new Player(r as RawPlayerRow));
   }
 
   /** Get all players (for admin views) */
@@ -96,7 +139,7 @@ export class PlayerService {
 
   /** Generate a one-time link code for in-game verification */
   async generateLinkCode(discordId: string): Promise<string> {
-    const code = randomBytes(3).toString("hex").toUpperCase(); // e.g. "A3F9B1"
+    const code = generateRandomHex(3); // e.g. "A3F9B1"
     await db.linkCode.upsert({
       where: { discordId },
       create: { discordId, code, expiresAt: new Date(Date.now() + 10 * 60_000) },

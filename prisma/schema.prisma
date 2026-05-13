@@ -1,0 +1,51 @@
+// ============================================================
+// DATABASE SCHEMA
+// PostgreSQL via Neon.tech (free tier)
+// Run: npx prisma db push
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  VIP
+  ADMIN
+  OWNER
+}
+
+model Player {
+  id                String    @id @default(cuid())
+  discordId         String    @unique
+  discordUsername   String
+  discordAvatar     String?
+  minecraftUuid     String?   @unique
+  minecraftUsername String?
+  linkedAt          DateTime?
+  joinedAt          DateTime  @default(now())
+
+  // Stats
+  playtimeMinutes   Int       @default(0)
+  kills             Int       @default(0)
+  deaths            Int       @default(0)
+  blocksPlaced      Int       @default(0)
+  blocksBroken      Int       @default(0)
+
+  role              Role      @default(MEMBER)
+
+  @@index([minecraftUsername])
+}
+
+model LinkCode {
+  discordId String   @id
+  code      String   @unique
+  expiresAt DateTime
+
+  @@index([code])
+}

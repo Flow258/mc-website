@@ -39,7 +39,7 @@ export default async function HomePage() {
             <br />
             <span className="text-emerald-400">Archive</span>
             <br />
-            <span className="text-white/30 text-3xl font-medium">SMP</span>
+            <span className="text-white/30 text-3xl font-medium">67</span>
           </h1>
 
           <p className="text-white/50 text-lg max-w-md leading-relaxed">

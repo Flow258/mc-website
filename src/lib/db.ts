@@ -1,34 +1,25 @@
 // ============================================================
-// DATABASE CLIENT — Edge-compatible (Cloudflare Workers)
-//
-// @prisma/adapter-pg expects a pg-compatible Pool interface.
-// @neondatabase/serverless exports exactly that interface but
-// uses HTTP/WebSocket instead of raw TCP — so it works in
-// Cloudflare Workers where pg's TCP sockets are blocked.
-//
-// Packages already in your package.json that this uses:
-//   @prisma/adapter-pg        ← Prisma driver adapter
-//   @neondatabase/serverless  ← drop-in pg Pool over HTTP/WS
-//   (you can safely remove the "pg" package — it's not used here)
+// DATABASE CLIENT
+// Uses PrismaClient with optional edge adapter for Cloudflare
 // ============================================================
 
-import { PrismaPg }   from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
-import { Pool, neonConfig } from "@neondatabase/serverless";
 
-// Local dev (Node.js) needs the 'ws' package for WebSockets.
-// Cloudflare Workers have a native WebSocket API — skip it there.
-if (typeof WebSocket === "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  neonConfig.webSocketConstructor = require("ws");
-}
+// For local development and production with standard Node.js,
+// we use the regular Prisma client.
+// The edge adapter (@prisma/adapter-pg) is only needed for
+// Cloudflare Workers/Pages edge environments.
 
-function createEdgeClient(): PrismaClient {
-  // Neon's Pool is a drop-in for pg.Pool — same interface,
-  // routes connections over HTTP/WebSocket instead of TCP.
-  const pool    = new Pool({ connectionString: process.env.DATABASE_URL! });
-  const adapter = new PrismaPg(pool as any);
-  return new PrismaClient({ adapter } as any);
+function createPrismaClient(): PrismaClient {
+  return new PrismaClient({
+    // Add logging in development to see queries
+    ...(process.env.NODE_ENV === "development" && {
+      log: [
+        { level: "warn", emit: "stdout" },
+        { level: "error", emit: "stdout" },
+      ],
+    }),
+  });
 }
 
 // ── Singleton — reuse across hot-reloads in dev ───────────────
@@ -36,6 +27,6 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const db = globalForPrisma.prisma ?? createEdgeClient();
+export const db = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

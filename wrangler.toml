@@ -1,0 +1,27 @@
+# ============================================================
+# WRANGLER CONFIG
+# Cloudflare Pages/Workers configuration for the MC Website
+# ============================================================
+
+name = "mc-website"
+main = "src/index.ts"
+type = "javascript"
+
+# ── Cloudflare Pages Configuration ──────────────────
+# Compatibility flags for Node.js APIs
+compatibility_flags = ["nodejs_compat"]
+
+# ── D1 Database (optional - only if migrating from Neon) ──
+# [env.production]
+# d1_databases = [
+#   { binding = "DB", database_name = "mc-smp" }
+# ]
+
+# ── Environment Variables ─────────────────────────
+[env.production]
+# Automatically loaded from .env.local and .env
+# No need to duplicate here
+
+# ── Development ─────────────────────────────────────
+[env.development]
+# Local development uses .env.local

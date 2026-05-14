@@ -25,8 +25,9 @@ export class MinecraftServerService {
     this.host = host;
     this.port = port;
     this.apiToken = apiToken;
-    // Non-standard ports likely indicate custom APIs
-    this.isCustomApi = port !== 25565;
+    // Only treat as custom API if we have a token AND non-standard port
+    // Otherwise fall back to mcsrvstat.us which works with any port
+    this.isCustomApi = port !== 25565 && !!apiToken;
   }
 
   private get cacheKey(): string {
@@ -34,11 +35,12 @@ export class MinecraftServerService {
   }
 
   private get apiUrl(): string {
-    if (this.isCustomApi) {
-      // Direct API call for custom servers
+    if (this.isCustomApi && this.apiToken) {
+      // Direct API call for custom servers WITH authentication
       return `http://${this.host}:${this.port}/api/status`;
     }
-    // Use public mcsrvstat.us for standard Minecraft servers
+    // Use public mcsrvstat.us for all other cases
+    // (standard ports, or custom ports without API token)
     return `${MinecraftServerService.MCSRVSTAT_API_BASE}/${this.host}:${this.port}`;
   }
 

@@ -9,16 +9,29 @@ import { PrismaClient } from "@prisma/client";
 // For local development and Node.js production, use standard client
 
 function createPrismaClient() {
-  const isEdgeRuntime = typeof EdgeRuntime !== "undefined";
+  // Detect if we're in an edge runtime (Cloudflare Workers)
+  // Check for Cloudflare-specific globals
+  const isEdgeRuntime =
+    typeof globalThis !== "undefined" &&
+    (globalThis.caches !== undefined || // Cloudflare Workers have caches API
+      process.env.ENVIRONMENT === "cloudflare" ||
+      process.env.RUNTIME === "edge");
 
   if (isEdgeRuntime) {
     // Cloudflare Workers environment
-    const { PrismaPg } = require("@prisma/adapter-pg");
-    return new PrismaClient({
-      adapter: new PrismaPg({
-        datasourceUrl: process.env.DATABASE_URL,
-      }),
-    });
+    try {
+      const { PrismaPg } = require("@prisma/adapter-pg");
+      return new PrismaClient({
+        adapter: new PrismaPg({
+          datasourceUrl: process.env.DATABASE_URL,
+        }),
+      });
+    } catch (err) {
+      console.warn(
+        "[Prisma] Failed to load edge adapter, falling back to standard client"
+      );
+      // Fall back to standard client if edge adapter fails
+    }
   }
 
   // Standard Node.js environment (local dev, traditional hosting)

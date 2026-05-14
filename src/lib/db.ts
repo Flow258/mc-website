@@ -5,12 +5,23 @@
 
 import { PrismaClient } from "@prisma/client";
 
-// For local development and production with standard Node.js,
-// we use the regular Prisma client.
-// The edge adapter (@prisma/adapter-pg) is only needed for
-// Cloudflare Workers/Pages edge environments.
+// For Cloudflare Workers/Pages, use the edge adapter
+// For local development and Node.js production, use standard client
 
-function createPrismaClient(): PrismaClient {
+function createPrismaClient() {
+  const isEdgeRuntime = typeof EdgeRuntime !== "undefined";
+
+  if (isEdgeRuntime) {
+    // Cloudflare Workers environment
+    const { PrismaPg } = require("@prisma/adapter-pg");
+    return new PrismaClient({
+      adapter: new PrismaPg({
+        datasourceUrl: process.env.DATABASE_URL,
+      }),
+    });
+  }
+
+  // Standard Node.js environment (local dev, traditional hosting)
   return new PrismaClient({
     // Add logging in development to see queries
     ...(process.env.NODE_ENV === "development" && {

@@ -1,7 +1,7 @@
 // ============================================================
 // SERVICE: MinecraftServerService
 // Fetches and caches live Minecraft server status
-// Uses the free mcsrvstat.us API (no key required)
+// Supports both public (mcsrvstat.us) and private servers with auth
 // ============================================================
 
 import { ServerStatus, RawServerStatusResponse } from "@/lib/models/ServerStatus";
@@ -12,16 +12,21 @@ interface CacheEntry {
 }
 
 export class MinecraftServerService {
-  private static readonly API_BASE = "https://api.mcsrvstat.us/3";
+  private static readonly MCSRVSTAT_API_BASE = "https://api.mcsrvstat.us/3";
   private static readonly CACHE_TTL_MS = 30_000; // 30 seconds
   private static cache = new Map<string, CacheEntry>();
 
   private readonly host: string;
   private readonly port: number;
+  private readonly isCustomApi: boolean; // true if port is not standard 25565
+  private readonly apiToken?: string;
 
-  constructor(host: string, port = 25565) {
+  constructor(host: string, port = 25565, apiToken?: string) {
     this.host = host;
     this.port = port;
+    this.apiToken = apiToken;
+    // Non-standard ports likely indicate custom APIs
+    this.isCustomApi = port !== 25565;
   }
 
   private get cacheKey(): string {
@@ -29,7 +34,12 @@ export class MinecraftServerService {
   }
 
   private get apiUrl(): string {
-    return `${MinecraftServerService.API_BASE}/${this.cacheKey}`;
+    if (this.isCustomApi) {
+      // Direct API call for custom servers
+      return `http://${this.host}:${this.port}/api/status`;
+    }
+    // Use public mcsrvstat.us for standard Minecraft servers
+    return `${MinecraftServerService.MCSRVSTAT_API_BASE}/${this.host}:${this.port}`;
   }
 
   /** Fetch server status, respecting in-memory cache */
@@ -54,10 +64,19 @@ export class MinecraftServerService {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8_000);
 
+      // Build headers - include auth token for custom APIs
+      const headers: Record<string, string> = {};
+      if (this.isCustomApi && this.apiToken) {
+        // Try common authentication methods
+        headers["Authorization"] = `Bearer ${this.apiToken}`;
+        headers["X-API-Token"] = this.apiToken;
+      }
+
       // Next.js extends RequestInit with `next` for ISR/cache hints
       type NextFetchInit = RequestInit & { next?: { revalidate?: number } };
       const fetchOptions: NextFetchInit = {
         signal: controller.signal,
+        headers,
         next: { revalidate: 30 },
       };
 
@@ -68,26 +87,30 @@ export class MinecraftServerService {
       // Don't throw on non-200 — just return offline
       if (!res.ok) {
         console.warn(
-          `[MinecraftServerService] ${this.cacheKey} returned HTTP ${res.status}`
+          `[MinecraftServerService] ${this.cacheKey} returned HTTP ${res.status}` +
+          (this.isCustomApi && res.status === 403 ? " (missing/invalid API token?)" : "")
         );
         return ServerStatus.offline(this.host, this.port);
       }
 
       const raw: RawServerStatusResponse = await res.json();
 
-      // mcsrvstat.us wraps the player list differently — normalize it
-      const normalized: RawServerStatusResponse = {
-        ...raw,
-        players: raw.players
-          ? {
-              online: (raw.players as any).online ?? 0,
-              max: (raw.players as any).max ?? 0,
-              list: (raw.players as any).list?.map((p: any) =>
-                typeof p === "string" ? p : p.name
-              ) ?? [],
-            }
-          : undefined,
-      };
+      // Handle both mcsrvstat.us format and custom API responses
+      const normalized: RawServerStatusResponse = this.isCustomApi
+        ? raw // Custom APIs should already be in the right format
+        : {
+            // mcsrvstat.us wraps the player list differently — normalize it
+            ...raw,
+            players: raw.players
+              ? {
+                  online: (raw.players as any).online ?? 0,
+                  max: (raw.players as any).max ?? 0,
+                  list: (raw.players as any).list?.map((p: any) =>
+                    typeof p === "string" ? p : p.name
+                  ) ?? [],
+                }
+              : undefined,
+          };
 
       return new ServerStatus(normalized);
     } catch (err) {
@@ -105,6 +128,7 @@ export class MinecraftServerService {
   static fromEnv(): MinecraftServerService {
     const host = process.env.MC_SERVER_HOST ?? "localhost";
     const port = parseInt(process.env.MC_SERVER_PORT ?? "25565", 10);
-    return new MinecraftServerService(host, port);
+    const apiToken = process.env.MC_SERVER_API_TOKEN; // Optional token for custom APIs
+    return new MinecraftServerService(host, port, apiToken);
   }
 }
